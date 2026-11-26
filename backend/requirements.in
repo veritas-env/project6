@@ -1,0 +1,10 @@
+# Runtime dependencies. Edit this, then regenerate requirements.lock (see Makefile).
+fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+psycopg[binary]
+alembic
+pydantic-settings
+argon2-cffi
+redis
+python-multipart

@@ -1,0 +1,23 @@
+# Backend image. Base pinned by digest; dependencies installed only from the
+# hash-locked requirements.lock; runs as an unprivileged user.
+FROM python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64 AS build
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /build
+COPY backend/requirements.lock .
+RUN python -m venv /venv \
+ && /venv/bin/pip install --require-hashes --no-deps -r requirements.lock
+
+FROM python:3.12-slim-bookworm@sha256:44cf1793efa7c7a476bb0f2cff81443f4a072c90c1cb127e2924933daa3e8c64
+ENV PATH=/venv/bin:$PATH PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 APP_ENV=production
+RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --no-create-home app \
+ && mkdir -p /data/uploads && chown app:app /data/uploads
+COPY --from=build /venv /venv
+WORKDIR /srv
+COPY --chown=root:root backend/app ./app
+COPY --chown=root:root backend/migrations ./migrations
+COPY --chown=root:root backend/alembic.ini ./
+USER app
+EXPOSE 8000
+# --forwarded-allow-ips: only the app's own Nginx (fixed address in compose.yaml) may set X-Forwarded-For.
+CMD ["uvicorn", "--factory", "app.main:app_factory", "--host", "0.0.0.0", "--port", "8000", \
+     "--no-server-header", "--proxy-headers", "--forwarded-allow-ips", "172.28.10.10", "--workers", "2"]
